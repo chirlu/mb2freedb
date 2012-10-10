@@ -31,7 +31,7 @@ class Server(object):
     def __call__(self, environ, start_response):
         args = parse_qs(environ['QUERY_STRING'])
         with closing(self.engine.connect()) as conn:
-            conn.execute("SET search_path TO musicbrainz")
+            conn.execute("SET search_path TO musicbrainz, public")
             response = CDDB(self.config, conn).handle(args)
         start_response('200 OK', [
             ('Content-Type', 'text/plain; charset=UTF-8'),
