@@ -47,7 +47,7 @@ class CDDB(object):
 
         toc_query = """
             SELECT DISTINCT
-                m.id,
+                to_hex(m.id),
                 CASE
                     WHEN (SELECT count(*) FROM medium WHERE release = r.id) > 1 THEN
                         rn.name || ' (disc ' || m.position::text || ')'
@@ -75,7 +75,7 @@ class CDDB(object):
 
         discid_query = """
             SELECT DISTINCT
-                m.id,
+                coalesce(c.freedb_id, to_hex(m.id)),
                 CASE
                     WHEN (SELECT count(*) FROM medium WHERE release = r.id) > 1 THEN
                         rn.name || ' (disc ' || m.position::text || ')'
@@ -102,11 +102,11 @@ class CDDB(object):
                 t.track_count = %(num_tracks)s
         """
 
-        #used_toc = False
-        #rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
-        #if not rows:
-        used_toc = True
-        rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
+        used_toc = False
+        rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
+        if not rows:
+            used_toc = True
+            rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
 
         if not rows:
             return ["202 No match found."]
@@ -114,12 +114,12 @@ class CDDB(object):
         # Only one match and we didn't use the TOC
         if len(rows) == 1 and not used_toc:
             id, title, artist = rows[0]
-            return ["200 rock %08x %s / %s" % (id, artist, title)]
+            return ["200 rock %08x %s / %s" % (int(id, 16), artist, title)]
 
         # Found multiple matches
         res = ["211 Found inexact matches, list follows (until terminating `.')"]
         for id, title, artist in rows:
-            res.append("rock %08x %s / %s" % (id, artist, title))
+            res.append("rock %08x %s / %s" % (int(id, 16), artist, title))
         res.append(".")
         return res
 
@@ -157,7 +157,9 @@ class CDDB(object):
             JOIN release_name rn ON r.name = rn.id
             JOIN artist_credit rac ON r.artist_credit = rac.id
             JOIN artist_name racn ON rac.name = racn.id
-            WHERE m.id = %(medium_id)s
+            LEFT JOIN medium_cdtoc mc ON m.id = mc.medium
+            LEFT JOIN cdtoc c ON c.id = mc.cdtoc
+            WHERE c.freedb_id = to_hex(%(medium_id)s) OR m.id = %(medium_id)s
         """
         rows = self.conn.execute(release_query, dict(medium_id=medium_id)).fetchall()
         if not rows:
