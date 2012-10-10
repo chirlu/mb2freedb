@@ -1,0 +1,4 @@
+mb2freedb.conf
+*.pyc
+*~
+build/
