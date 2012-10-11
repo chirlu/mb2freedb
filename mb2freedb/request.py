@@ -47,7 +47,7 @@ class CDDB(object):
 
         toc_query = """
             SELECT DISTINCT
-                to_hex(m.id),
+                m.id,
                 CASE
                     WHEN (SELECT count(*) FROM medium WHERE release = r.id) > 1 THEN
                         rn.name || ' (disc ' || m.position::text || ')'
@@ -73,53 +73,16 @@ class CDDB(object):
                 track_count = %(num_tracks)s
         """
 
-        discid_query = """
-            SELECT DISTINCT
-                coalesce(c.freedb_id, to_hex(m.id)),
-                CASE
-                    WHEN (SELECT count(*) FROM medium WHERE release = r.id) > 1 THEN
-                        rn.name || ' (disc ' || m.position::text || ')'
-                    ELSE
-                        rn.name
-                END AS title,
-                CASE
-                    WHEN artist_name.name = 'Various Artists' THEN
-                        'Various'
-                    ELSE
-                        artist_name.name
-                END AS artist
-            FROM
-                medium m
-                JOIN medium_cdtoc mc ON m.id = mc.medium
-                JOIN cdtoc c ON c.id = mc.cdtoc
-                JOIN tracklist t ON t.id = m.tracklist
-                JOIN release r ON m.release = r.id
-                JOIN release_name rn ON r.name = rn.id
-                JOIN artist_credit ON r.artist_credit = artist_credit.id
-                JOIN artist_name ON artist_credit.name = artist_name.id
-            WHERE
-                c.freedb_id = %(discid)s AND
-                t.track_count = %(num_tracks)s
-        """
-
-        used_toc = False
-        rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
-        if not rows:
-            used_toc = True
-            rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
+        used_toc = True
+        rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
 
         if not rows:
             return ["202 No match found."]
 
-        # Only one match and we didn't use the TOC
-        if len(rows) == 1 and not used_toc:
-            id, title, artist = rows[0]
-            return ["200 rock %08x %s / %s" % (int(id, 16), artist, title)]
-
         # Found multiple matches
         res = ["211 Found inexact matches, list follows (until terminating `.')"]
         for id, title, artist in rows:
-            res.append("rock %08x %s / %s" % (int(id, 16), artist, title))
+            res.append("rock %08x %s / %s" % (id, artist, title))
         res.append(".")
         return res
 
@@ -160,6 +123,7 @@ class CDDB(object):
             LEFT JOIN medium_cdtoc mc ON m.id = mc.medium
             LEFT JOIN cdtoc c ON c.id = mc.cdtoc
             WHERE c.freedb_id = lpad(to_hex(%(medium_id)s), 8, '0') OR m.id = %(medium_id)s
+            ORDER BY m.id = %(medium_id)s DESC
         """
         rows = self.conn.execute(release_query, dict(medium_id=medium_id)).fetchall()
         if not rows:
