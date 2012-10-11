@@ -90,7 +90,7 @@ class CDDB(object):
         if not (discid_rows or toc_rows):
             return ["202 No match found."]
 
-        # Found multiple matches
+        # Always claim we found multiple matches
         res = ["211 Found inexact matches, list follows (until terminating `.')"]
         for id, title, artist in toc_rows:
             res.append("misc %08x %s / %s" % (id, artist, title))
