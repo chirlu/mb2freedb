@@ -45,9 +45,9 @@ class CDDB(object):
         for i in xrange(num_tracks):
             durations.append((offsets[i + 1] - offsets[i]) * 1000 / 75)
 
-        toc_query = """
+        base_query = """
             SELECT DISTINCT
-                m.id,
+                %(prop)s,
                 CASE
                     WHEN (SELECT count(*) FROM medium WHERE release = r.id) > 1 THEN
                         rn.name || ' (disc ' || m.position::text || ')'
@@ -63,63 +63,39 @@ class CDDB(object):
             FROM
                 medium m
                 JOIN tracklist t ON t.id = m.tracklist
-                JOIN tracklist_index ti ON ti.tracklist = t.id
                 JOIN release r ON m.release = r.id
                 JOIN release_name rn ON r.name = rn.id
                 JOIN artist_credit ON r.artist_credit = artist_credit.id
                 JOIN artist_name ON artist_credit.name = artist_name.id
+        """
+
+        toc_query = (base_query % {'prop': 'm.id'}) + """
+                JOIN tracklist_index ti ON ti.tracklist = t.id
             WHERE
                 toc <@ create_bounding_cube(%(durations)s, %(fuzzy)s::int) AND
                 track_count = %(num_tracks)s
         """
 
-        discid_query = """
-            SELECT DISTINCT
-                m.id,
-                CASE
-                    WHEN (SELECT count(*) FROM medium WHERE release = r.id) > 1 THEN
-                        rn.name || ' (disc ' || m.position::text || ')'
-                    ELSE
-                        rn.name
-                END AS title,
-                CASE
-                    WHEN artist_name.name = 'Various Artists' THEN
-                        'Various'
-                    ELSE
-                        artist_name.name
-                END AS artist
-            FROM
-                medium m
+        discid_query = (base_query % {'prop': 'ON (c.freedb_id) c.freedb_id'}) + """
                 JOIN medium_cdtoc mc ON m.id = mc.medium
                 JOIN cdtoc c ON c.id = mc.cdtoc
-                JOIN tracklist t ON t.id = m.tracklist
-                JOIN release r ON m.release = r.id
-                JOIN release_name rn ON r.name = rn.id
-                JOIN artist_credit ON r.artist_credit = artist_credit.id
-                JOIN artist_name ON artist_credit.name = artist_name.id
             WHERE
                 c.freedb_id = %(discid)s AND
                 t.track_count = %(num_tracks)s
         """
 
-        #used_toc = False
-        #rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
-        #if not rows:
-        used_toc = True
-        rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
+        discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
+        toc_rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
 
-        if not rows:
+        if not (discid_rows or toc_rows):
             return ["202 No match found."]
 
-        # Only one match and we didn't use the TOC
-        if len(rows) == 1 and not used_toc:
-            id, title, artist = rows[0]
-            return ["200 rock %08x %s / %s" % (id, artist, title)]
-
-        # Found multiple matches
+        # Always claim we found multiple matches
         res = ["211 Found inexact matches, list follows (until terminating `.')"]
-        for id, title, artist in rows:
-            res.append("rock %08x %s / %s" % (id, artist, title))
+        for id, title, artist in toc_rows:
+            res.append("misc %08x %s / %s" % (id, artist, title))
+        for id, title, artist in discid_rows:
+            res.append("rock %s %s / %s" % (id, artist, title))
         res.append(".")
         return res
 
@@ -128,13 +104,8 @@ class CDDB(object):
         if len(self.cmd) < 2:
             return ["500 Command syntax error."]
 
-        if self.cmd[0] != 'rock':
+        if self.cmd[0] not in ['rock', 'misc']:
             return ["401 Specified CDDB entry not found."]
-
-        try:
-            medium_id = int(self.cmd[1], 16)
-        except ValueError:
-            return ["500 ID not hex."]
 
         release_query = """
             SELECT
@@ -157,9 +128,32 @@ class CDDB(object):
             JOIN release_name rn ON r.name = rn.id
             JOIN artist_credit rac ON r.artist_credit = rac.id
             JOIN artist_name racn ON rac.name = racn.id
-            WHERE m.id = %(medium_id)s
-        """
-        rows = self.conn.execute(release_query, dict(medium_id=medium_id)).fetchall()
+            """
+
+        if self.cmd[0] == 'misc':
+            try:
+                medium_id = int(self.cmd[1], 16)
+            except ValueError:
+                return ["500 ID not hex."]
+
+            release_query = release_query + """
+                WHERE m.id = %(id)s
+            """
+            rows = self.conn.execute(release_query, dict(id=medium_id)).fetchall()
+        elif self.cmd[0] == 'rock':
+            try:
+                int(self.cmd[1], 16)
+                freedb_id = self.cmd[1]
+            except ValueError:
+                return ["500 ID not hex."]
+
+            release_query = release_query + """
+                JOIN medium_cdtoc mc ON m.id = mc.medium
+                JOIN cdtoc c ON c.id = mc.cdtoc
+                WHERE c.freedb_id = %(id)s
+            """
+            rows = self.conn.execute(release_query, dict(id=freedb_id)).fetchall()
+
         if not rows:
             return ["401 Specified CDDB entry not found."]
         release = rows[0]
@@ -223,7 +217,9 @@ class CDDB(object):
     def handle_cmd_cddb_lscat(self):
         return [
             "210 OK, category list follows (until terminating `.')",
-            "rock", "."
+            "rock",
+            "misc",
+            "."
         ]
 
     def handle_cmd_sites(self):
@@ -261,7 +257,7 @@ class CDDB(object):
             "Database entries: 2",
             "Database entries by category:",
             "    rock: 1",
-            "    jazz: 1",
+            "    misc: 1",
             "."
         ]
 
