@@ -159,7 +159,7 @@ class CDDB(object):
             JOIN artist_name racn ON rac.name = racn.id
             LEFT JOIN medium_cdtoc mc ON m.id = mc.medium
             LEFT JOIN cdtoc c ON c.id = mc.cdtoc
-            WHERE c.freedb_id = to_hex(%(medium_id)s) OR m.id = %(medium_id)s
+            WHERE c.freedb_id = lpad(to_hex(%(medium_id)s), 8, '0') OR m.id = %(medium_id)s
         """
         rows = self.conn.execute(release_query, dict(medium_id=medium_id)).fetchall()
         if not rows:
