@@ -201,11 +201,10 @@ class CDDB(object):
         if self.proto == '5' or self.proto == '6':
             res.append("DYEAR=%s" % (release['year'] or '',))
             res.append("DGENRE=Unknown")
-        if len(artists) > 1:
-            for i, track in enumerate(tracks):
+        for i, track in enumerate(tracks):
+            if track['artist'] != release['artist']:
                 res.append("TTITLE%d=%s / %s" % (i, track['artist'], track['title']))
-        else:
-            for i, track in enumerate(tracks):
+            else:
                 res.append("TTITLE%d=%s" % (i, track['title']))
         res.append("EXTD=")
         for i in xrange(len(tracks)):
