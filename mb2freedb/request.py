@@ -45,7 +45,7 @@ class CDDB(object):
         for i in xrange(num_tracks):
             durations.append((offsets[i + 1] - offsets[i]) * 1000 / 75)
 
-        base_query = """
+        query_template = """
             SELECT DISTINCT
                 %(prop)s,
                 CASE
@@ -62,27 +62,32 @@ class CDDB(object):
                 END AS artist
             FROM
                 medium m
+                LEFT JOIN medium_format mf ON m.format = mf.id
                 JOIN tracklist t ON t.id = m.tracklist
                 JOIN release r ON m.release = r.id
                 JOIN release_name rn ON r.name = rn.id
                 JOIN artist_credit ON r.artist_credit = artist_credit.id
                 JOIN artist_name ON artist_credit.name = artist_name.id
-        """
-
-        toc_query = (base_query % {'prop': 'm.id'}) + """
-                JOIN tracklist_index ti ON ti.tracklist = t.id
+                %(extra_joins)s
             WHERE
-                toc <@ create_bounding_cube(%(durations)s, %(fuzzy)s::int) AND
-                track_count = %(num_tracks)s
+                (mf.has_discids IS DISTINCT FROM FALSE)
+                %(extra_wheres)s
         """
 
-        discid_query = (base_query % {'prop': 'ON (c.freedb_id) c.freedb_id'}) + """
+        toc_query = query_template % {'prop': 'm.id',
+                                      'extra_joins': """
+                JOIN tracklist_index ti ON ti.tracklist = t.id""",
+                                      'extra_wheres': """
+                AND toc <@ create_bounding_cube(%(durations)s, %(fuzzy)s::int)
+                AND track_count = %(num_tracks)s"""}
+
+        discid_query = query_template % {'prop': 'ON (c.freedb_id) c.freedb_id',
+                                         'extra_joins': """
                 JOIN medium_cdtoc mc ON m.id = mc.medium
-                JOIN cdtoc c ON c.id = mc.cdtoc
-            WHERE
-                c.freedb_id = %(discid)s AND
-                t.track_count = %(num_tracks)s
-        """
+                JOIN cdtoc c ON c.id = mc.cdtoc""",
+                                         'extra_wheres': """
+                AND c.freedb_id = %(discid)s
+                AND t.track_count = %(num_tracks)s"""}
 
         discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
         toc_rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
