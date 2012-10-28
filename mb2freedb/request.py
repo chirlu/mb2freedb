@@ -89,8 +89,13 @@ class CDDB(object):
                 AND c.freedb_id = %(discid)s
                 AND t.track_count = %(num_tracks)s"""}
 
-        discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
-        toc_rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
+        try:
+            discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
+            toc_rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
+        except DataError:
+            return ["400 invalid request"]
+        except ProgrammingError:
+            return ["400 invalid request"]
 
         if not (discid_rows or toc_rows):
             return ["202 No match found."]
