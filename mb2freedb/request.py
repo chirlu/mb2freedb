@@ -152,7 +152,7 @@ class CDDB(object):
             rows = self.conn.execute(release_query, dict(id=medium_id)).fetchall()
         elif self.cmd[0] == 'rock':
             try:
-                int(self.cmd[1], 16)
+                medium_id = int(self.cmd[1], 16)
                 freedb_id = self.cmd[1]
             except ValueError:
                 return ["500 ID not hex."]
