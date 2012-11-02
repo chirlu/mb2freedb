@@ -239,14 +239,18 @@ class CDDB(object):
         ]
 
     def handle_cmd_motd(self):
+        updated = self.conn.execute('''SELECT last_replication_date FROM replication_control''').fetchall()
         return [
             "210 Last modified: 07/04/2006 12:00:00 MOTD follows (until terminating `.')",
             "Welcome to the MusicBrainz FREEDB gateway.",
             "You can find the MusicBrainz website at http://musicbrainz.org/",
+            "This server is running using data last replicated " + str(updated[0][0]),
             "."
         ]
 
     def handle_cmd_stat(self):
+        mediums = self.conn.execute('''SELECT count(id) FROM medium''').fetchall()
+        discids = self.conn.execute('''SELECT count(distinct freedb_id) FROM cdtoc''').fetchall()
         return [
             "210 OK, status information follows (until terminating `.')",
             "Server status:",
@@ -265,8 +269,8 @@ class CDDB(object):
             "    max users: 1",
             "Database entries: 2",
             "Database entries by category:",
-            "    rock: 1",
-            "    misc: 1",
+            "    rock: " + str(discids[0][0]),
+            "    misc: " + str(mediums[0][0]),
             "."
         ]
 
@@ -274,7 +278,7 @@ class CDDB(object):
         return ["401 No user information available."]
 
     def handle_cmd_ver(self):
-        return ["200 mb2freedb %s, Copyright (c) 2006,2011 Lukas Lalinsky." % (__version__,)]
+        return ["200 mb2freedb %s, Copyright (c) 2006,2011 Lukas Lalinsky; 2012 Ian McEwen." % (__version__,)]
 
     def handle_cmd_help(self):
         return [
