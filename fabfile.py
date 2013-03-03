@@ -11,7 +11,7 @@ def production():
     with cd("/home/mb2freedb/mb2freedb"):
         sudo("git remote set-url origin git://github.com/ianmcorvidae/mb2freedb.git", user="mb2freedb")
         sudo("git pull --ff-only", user="mb2freedb")
-        sudo("find . -name '*.pyc' -exec rm {} \;", user="mb2freedb")
+        sudo("python2 setup.py install")
         sudo("invoke-rc.d apache2 restart")
 
 def no_local_changes():
