@@ -9,6 +9,7 @@ def production():
     env.host_string = "freedb.musicbrainz.org"
     no_local_changes()
     with cd("/home/mb2freedb/mb2freedb"):
+        sudo("git remote set-url origin git://github.com/ianmcorvidae/mb2freedb.git", user="mb2freedb")
         sudo("git pull --ff-only", user="mb2freedb")
         sudo("invoke-rc.d apache2 reload")
 
