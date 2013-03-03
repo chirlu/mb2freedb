@@ -278,7 +278,7 @@ class CDDB(object):
         return ["401 No user information available."]
 
     def handle_cmd_ver(self):
-        return ["200 mb2freedb %s, Copyright (c) 2006,2011 Lukas Lalinsky; 2012 Ian McEwen." % (__version__,)]
+        return ["200 mb2freedb %s, Copyright (c) 2006,2011 Lukas Lalinsky; 2012 Ian McEwen." % (mb2freedb.__version__,)]
 
     def handle_cmd_help(self):
         return [
