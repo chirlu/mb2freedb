@@ -36,14 +36,19 @@ class CDDB(object):
         if len(self.cmd) < 3 + num_tracks:
             return ["500 Command syntax error."]
 
-        offsets = []
+        offsets = []	# in frames
         for i in xrange(2, 2 + num_tracks):
             offsets.append(int(self.cmd[i]))
         offsets.append(int(self.cmd[2 + num_tracks]) * 75)
 
-        durations = []
+        durations = []	# in ms
         for i in xrange(num_tracks):
             durations.append((offsets[i + 1] - offsets[i]) * 1000 / 75)
+
+        # prepare durations without the last track (data track?)
+        durations2 = durations[0:num_tracks-1]
+        # substract the gap between audio and data session
+        durations2[-1] = durations2[-1] - (11400 * 1000 / 75)
 
         query_template = """
             SELECT DISTINCT
@@ -92,12 +97,17 @@ class CDDB(object):
         try:
             discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
             toc_rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
+	    if not (discid_rows or toc_rows):
+                # try removing a data track
+                toc_rows2 = self.conn.execute(toc_query, dict(durations=durations2, num_tracks=num_tracks-1, fuzzy=10000)).fetchall()
+            else:
+                toc_rows2 = []
         except DataError:
             return ["400 invalid request"]
         except ProgrammingError:
             return ["400 invalid request"]
 
-        if not (discid_rows or toc_rows):
+        if not (discid_rows or toc_rows or toc_rows2):
             return ["202 No match found."]
 
         # Always claim we found multiple matches
@@ -106,6 +116,8 @@ class CDDB(object):
             res.append("misc %08x %s / %s" % (id, artist, title))
         for id, title, artist in discid_rows:
             res.append("rock %s %s / %s" % (id, artist, title))
+        for id, title, artist in toc_rows2:
+            res.append("misc %08x %s / %s" % (id, artist, title))
         res.append(".")
         return res
 
