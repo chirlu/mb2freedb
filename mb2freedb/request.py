@@ -120,8 +120,12 @@ class CDDB(object):
         # Always claim we found multiple matches
         res = ["211 Found inexact matches, list follows (until terminating `.')"]
         for id, title, artist in toc_rows:
+            # note that these are NOT actually valid freedb ids
+            # misc ids are medium ids in this case, which are unique
             res.append("misc %08x %s / %s" % (id, artist, title))
         for id, title, artist in discid_rows:
+            # This will only list one of the releases on freedb id collisions
+            # due to SELECT DISTINCT ONE above.
             res.append("rock %s %s / %s" % (id, artist, title))
         res.append(".")
         return res
