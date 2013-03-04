@@ -48,8 +48,12 @@ class CDDB(object):
 
         # prepare durations without the last track (data track?)
         durations2 = durations[0:num_tracks-1]
-        # substract the gap between audio and data session
-        durations2[-1] = durations2[-1] - (11400 * 1000 / 75)
+        if durations2:
+            # substract the gap between audio and data session
+            durations2[-1] = durations2[-1] - (11400 * 1000 / 75)
+        else:
+            # no track removal if it's the only track
+            durations2 = durations
 
         query_template = """
             SELECT DISTINCT
