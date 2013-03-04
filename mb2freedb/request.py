@@ -110,7 +110,7 @@ class CDDB(object):
         except ProgrammingError:
             return ["400 invalid request"]
 
-        if not (discid_rows or toc_rows or toc_rows2):
+        if not (discid_rows or toc_rows):
             return ["202 No match found."]
 
         # Always claim we found multiple matches
@@ -119,8 +119,6 @@ class CDDB(object):
             res.append("misc %08x %s / %s" % (id, artist, title))
         for id, title, artist in discid_rows:
             res.append("rock %s %s / %s" % (id, artist, title))
-        for id, title, artist in toc_rows2:
-            res.append("misc %08x %s / %s" % (id, artist, title))
         res.append(".")
         return res
 
