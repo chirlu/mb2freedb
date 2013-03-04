@@ -3,6 +3,7 @@
 
 import logging
 import mb2freedb
+from sqlalchemy.exc import DataError, ProgrammingError
 
 logger = logging.getLogger(__name__)
 
