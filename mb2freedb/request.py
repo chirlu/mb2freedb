@@ -84,8 +84,13 @@ class CDDB(object):
                                       'extra_joins': """
                 JOIN tracklist_index ti ON ti.tracklist = t.id""",
                                       'extra_wheres': """
-                AND toc <@ create_bounding_cube(%(durations)s, %(fuzzy)s::int)
-                AND track_count = %(num_tracks)s"""}
+                AND (
+                    (toc <@ create_bounding_cube(%(durations)s,
+                        %(fuzzy)s::int) AND track_count = %(num_tracks)s)
+                    OR
+                    (toc <@ create_bounding_cube(%(durations2)s,
+                        %(fuzzy)s::int) AND track_count = (%(num_tracks)s-1))
+                )"""}
 
         discid_query = query_template % {'prop': 'ON (c.freedb_id) c.freedb_id',
                                          'extra_joins': """
@@ -97,12 +102,9 @@ class CDDB(object):
 
         try:
             discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
-            toc_rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
-	    if not (discid_rows or toc_rows):
-                # try removing a data track
-                toc_rows2 = self.conn.execute(toc_query, dict(durations=durations2, num_tracks=num_tracks-1, fuzzy=10000)).fetchall()
-            else:
-                toc_rows2 = []
+            toc_rows = self.conn.execute(toc_query,
+                    dict(durations=durations, durations2=durations2,
+                         num_tracks=num_tracks, fuzzy=10000)).fetchall()
         except DataError:
             return ["400 invalid request"]
         except ProgrammingError:
