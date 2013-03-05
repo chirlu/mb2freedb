@@ -3,6 +3,7 @@
 
 import logging
 import mb2freedb
+from sqlalchemy.exc import DataError, ProgrammingError
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +37,23 @@ class CDDB(object):
         if len(self.cmd) < 3 + num_tracks:
             return ["500 Command syntax error."]
 
-        offsets = []
+        offsets = []	# in frames
         for i in xrange(2, 2 + num_tracks):
             offsets.append(int(self.cmd[i]))
         offsets.append(int(self.cmd[2 + num_tracks]) * 75)
 
-        durations = []
+        durations = []	# in ms
         for i in xrange(num_tracks):
             durations.append((offsets[i + 1] - offsets[i]) * 1000 / 75)
+
+        # prepare durations without the last track (data track?)
+        durations2 = durations[0:num_tracks-1]
+        if durations2:
+            # substract the gap between audio and data session
+            durations2[-1] = durations2[-1] - (11400 * 1000 / 75)
+        else:
+            # no track removal if it's the only track
+            durations2 = durations
 
         query_template = """
             SELECT DISTINCT
@@ -78,8 +88,13 @@ class CDDB(object):
                                       'extra_joins': """
                 JOIN tracklist_index ti ON ti.tracklist = t.id""",
                                       'extra_wheres': """
-                AND toc <@ create_bounding_cube(%(durations)s, %(fuzzy)s::int)
-                AND track_count = %(num_tracks)s"""}
+                AND (
+                    (toc <@ create_bounding_cube(%(durations)s,
+                        %(fuzzy)s::int) AND track_count = %(num_tracks)s)
+                    OR
+                    (toc <@ create_bounding_cube(%(durations2)s,
+                        %(fuzzy)s::int) AND track_count = (%(num_tracks)s-1))
+                )"""}
 
         discid_query = query_template % {'prop': 'ON (c.freedb_id) c.freedb_id',
                                          'extra_joins': """
@@ -91,7 +106,9 @@ class CDDB(object):
 
         try:
             discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
-            toc_rows = self.conn.execute(toc_query, dict(durations=durations, num_tracks=num_tracks, fuzzy=10000)).fetchall()
+            toc_rows = self.conn.execute(toc_query,
+                    dict(durations=durations, durations2=durations2,
+                         num_tracks=num_tracks, fuzzy=10000)).fetchall()
         except DataError:
             return ["400 invalid request"]
         except ProgrammingError:
@@ -103,8 +120,12 @@ class CDDB(object):
         # Always claim we found multiple matches
         res = ["211 Found inexact matches, list follows (until terminating `.')"]
         for id, title, artist in toc_rows:
+            # note that these are NOT actually valid freedb ids
+            # misc ids are medium ids in this case, which are unique
             res.append("misc %08x %s / %s" % (id, artist, title))
         for id, title, artist in discid_rows:
+            # This will only list one of the releases on freedb id collisions
+            # due to SELECT DISTINCT ONE above.
             res.append("rock %s %s / %s" % (id, artist, title))
         res.append(".")
         return res
