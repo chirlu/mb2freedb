@@ -125,7 +125,7 @@ class CDDB(object):
             res.append("misc %08x %s / %s" % (id, artist, title))
         for id, title, artist in discid_rows:
             # This will only list one of the releases on freedb id collisions
-            # due to SELECT DISTINCT ONE above.
+            # due to SELECT DISTINCT above.
             res.append("rock %s %s / %s" % (id, artist, title))
         res.append(".")
         return res
