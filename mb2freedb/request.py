@@ -73,7 +73,6 @@ class CDDB(object):
             FROM
                 medium m
                 LEFT JOIN medium_format mf ON m.format = mf.id
-                JOIN tracklist t ON t.id = m.tracklist
                 JOIN release r ON m.release = r.id
                 JOIN release_name rn ON r.name = rn.id
                 JOIN artist_credit ON r.artist_credit = artist_credit.id
@@ -86,7 +85,7 @@ class CDDB(object):
 
         toc_query = query_template % {'prop': 'm.id',
                                       'extra_joins': """
-                JOIN tracklist_index ti ON ti.tracklist = t.id""",
+                JOIN medium_index mi ON mi.medium = m.id""",
                                       'extra_wheres': """
                 AND (
                     (toc <@ create_bounding_cube(%(durations)s,
@@ -102,7 +101,7 @@ class CDDB(object):
                 JOIN cdtoc c ON c.id = mc.cdtoc""",
                                          'extra_wheres': """
                 AND c.freedb_id = %(discid)s
-                AND t.track_count = %(num_tracks)s"""}
+                AND m.track_count = %(num_tracks)s"""}
 
         try:
             discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
@@ -153,7 +152,7 @@ class CDDB(object):
                         racn.name
                 END AS artist,
                 r.date_year AS year,
-                m.tracklist
+                m.id AS medium_id
             FROM medium m
             JOIN release r ON m.release = r.id
             JOIN release_name rn ON r.name = rn.id
@@ -203,10 +202,10 @@ class CDDB(object):
             JOIN track_name tn ON t.name = tn.id
             JOIN artist_credit tac ON t.artist_credit = tac.id
             JOIN artist_name tacn ON tac.name = tacn.id
-            WHERE t.tracklist = %(tracklist_id)s
+            WHERE t.medium = %(medium_id)s
             ORDER BY t.position
         """
-        tracks = self.conn.execute(tracks_query, dict(tracklist_id=release['tracklist'])).fetchall()
+        tracks = self.conn.execute(tracks_query, dict(medium_id=release['medium_id'])).fetchall()
 
         res = ["210 OK, CDDB database entry follows (until terminating `.')"]
         res.append("# xmcd CD database file")
