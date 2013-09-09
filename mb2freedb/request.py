@@ -151,13 +151,24 @@ class CDDB(object):
                     ELSE
                         racn.name
                 END AS artist,
-                r.date_year AS year,
+                min(re.date_year) AS year,
                 m.id AS medium_id
             FROM medium m
             JOIN release r ON m.release = r.id
             JOIN release_name rn ON r.name = rn.id
             JOIN artist_credit rac ON r.artist_credit = rac.id
             JOIN artist_name racn ON rac.name = racn.id
+            LEFT JOIN (
+                SELECT release, country, date_year, date_month, date_day
+                FROM release_country
+                UNION ALL
+                SELECT release, NULL, date_year, date_month, date_day
+                FROM release_unknown_country
+            ) re ON re.release = r.id
+            """
+
+        grouper = """
+            GROUP BY r.id, m.id, title, artist
             """
 
         if self.cmd[0] == 'misc':
@@ -169,7 +180,7 @@ class CDDB(object):
             release_query = release_query + """
                 WHERE m.id = %(id)s
             """
-            rows = self.conn.execute(release_query, dict(id=medium_id)).fetchall()
+            rows = self.conn.execute(release_query + grouper, dict(id=medium_id)).fetchall()
         elif self.cmd[0] == 'rock':
             try:
                 medium_id = int(self.cmd[1], 16)
@@ -182,7 +193,7 @@ class CDDB(object):
                 JOIN cdtoc c ON c.id = mc.cdtoc
                 WHERE c.freedb_id = %(id)s
             """
-            rows = self.conn.execute(release_query, dict(id=freedb_id)).fetchall()
+            rows = self.conn.execute(release_query + grouper, dict(id=freedb_id)).fetchall()
 
         if not rows:
             return ["401 Specified CDDB entry not found."]
