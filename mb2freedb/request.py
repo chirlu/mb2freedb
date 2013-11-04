@@ -60,23 +60,21 @@ class CDDB(object):
                 %(prop)s,
                 CASE
                     WHEN (SELECT count(*) FROM medium WHERE release = r.id) > 1 THEN
-                        rn.name || ' (disc ' || m.position::text || ')'
+                        r.name || ' (disc ' || m.position::text || ')'
                     ELSE
-                        rn.name
+                        r.name
                 END AS title,
                 CASE
-                    WHEN artist_name.name = 'Various Artists' THEN
+                    WHEN artist_credit.name = 'Various Artists' THEN
                         'Various'
                     ELSE
-                        artist_name.name
+                        artist_credit.name
                 END AS artist
             FROM
                 medium m
                 LEFT JOIN medium_format mf ON m.format = mf.id
                 JOIN release r ON m.release = r.id
-                JOIN release_name rn ON r.name = rn.id
                 JOIN artist_credit ON r.artist_credit = artist_credit.id
-                JOIN artist_name ON artist_credit.name = artist_name.id
                 %(extra_joins)s
             WHERE
                 (mf.has_discids IS DISTINCT FROM FALSE)
@@ -141,23 +139,21 @@ class CDDB(object):
             SELECT
                 CASE
                     WHEN (SELECT count(*) FROM medium WHERE release = r.id) > 1 THEN
-                        rn.name || ' (disc ' || m.position::text || ')'
+                        r.name || ' (disc ' || m.position::text || ')'
                     ELSE
-                        rn.name
+                        r.name
                 END AS title,
                 CASE
-                    WHEN racn.name = 'Various Artists' THEN
+                    WHEN rac.name = 'Various Artists' THEN
                         'Various'
                     ELSE
-                        racn.name
+                        rac.name
                 END AS artist,
                 min(re.date_year) AS year,
                 m.id AS medium_id
             FROM medium m
             JOIN release r ON m.release = r.id
-            JOIN release_name rn ON r.name = rn.id
             JOIN artist_credit rac ON r.artist_credit = rac.id
-            JOIN artist_name racn ON rac.name = racn.id
             LEFT JOIN (
                 SELECT release, country, date_year, date_month, date_day
                 FROM release_country
@@ -202,17 +198,15 @@ class CDDB(object):
         tracks_query = """
             SELECT
                 t.length,
-                tn.name AS title,
+                t.name AS title,
                 CASE
-                    WHEN tacn.name = 'Various Artists' THEN
+                    WHEN tac.name = 'Various Artists' THEN
                         'Various'
                     ELSE
-                        tacn.name
+                        tac.name
                 END AS artist
             FROM track t
-            JOIN track_name tn ON t.name = tn.id
             JOIN artist_credit tac ON t.artist_credit = tac.id
-            JOIN artist_name tacn ON tac.name = tacn.id
             WHERE t.medium = %(medium_id)s
             ORDER BY t.position
         """
@@ -309,7 +303,7 @@ class CDDB(object):
         return ["401 No user information available."]
 
     def handle_cmd_ver(self):
-        return ["200 mb2freedb %s, Copyright (c) 2006,2011 Lukas Lalinsky; 2012 Ian McEwen." % (mb2freedb.__version__,)]
+        return ["200 mb2freedb %s, Copyright (c) 2006,2011 Lukas Lalinsky; 2012,2013 Ian McEwen." % (mb2freedb.__version__,)]
 
     def handle_cmd_help(self):
         return [
