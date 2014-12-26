@@ -103,9 +103,15 @@ class CDDB(object):
 
         try:
             discid_rows = self.conn.execute(discid_query, dict(discid=discid, num_tracks=num_tracks)).fetchall()
+            # Use a fuzzy value of 10000 by default (10 seconds), but for discs
+            # with few tracks this produces way too many results. So, for
+            # releases with fewer than 10 tracks, use a number of seconds equal
+            # to the number of tracks, instead. Thus, one-track releases should
+            # have a track time within one second, two-track releases within
+            # two, etc.
             toc_rows = self.conn.execute(toc_query,
                     dict(durations=durations, durations2=durations2,
-                         num_tracks=num_tracks, fuzzy=10000)).fetchall()
+                         num_tracks=num_tracks, fuzzy=min(10000, num_tracks*1000))).fetchall()
         except DataError:
             return ["400 invalid request"]
         except ProgrammingError:
