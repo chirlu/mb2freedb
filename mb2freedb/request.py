@@ -207,7 +207,7 @@ class CDDB(object):
                 END AS artist
             FROM track t
             JOIN artist_credit tac ON t.artist_credit = tac.id
-            WHERE t.medium = %(medium_id)s
+            WHERE t.medium = %(medium_id)s AND t.position > 0 AND t.is_data_track = false
             ORDER BY t.position
         """
         tracks = self.conn.execute(tracks_query, dict(medium_id=release['medium_id'])).fetchall()
