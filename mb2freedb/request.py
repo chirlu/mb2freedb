@@ -81,7 +81,14 @@ class CDDB(object):
                 %(extra_wheres)s
         """
 
-        toc_query = query_template % {'prop': 'm.id',
+        toc_query = query_template % {'prop': """
+                m.id,
+                CASE
+                    WHEN track_count = %(num_tracks)s THEN
+                        cube_distance(create_bounding_cube(%(durations)s, 0), mi.toc)
+                    ELSE
+                        cube_distance(create_bounding_cube(%(durations2)s, 0), mi.toc)
+                END""",
                                       'extra_joins': """
                 JOIN medium_index mi ON mi.medium = m.id""",
                                       'extra_wheres': """
@@ -91,7 +98,15 @@ class CDDB(object):
                     OR
                     (toc <@ create_bounding_cube(%(durations2)s,
                         %(fuzzy)s::int) AND track_count = (%(num_tracks)s-1))
-                )"""}
+                )
+                ORDER BY
+                CASE
+                    WHEN track_count = %(num_tracks)s THEN
+                        cube_distance(create_bounding_cube(%(durations)s, 0), mi.toc)
+                    ELSE
+                        cube_distance(create_bounding_cube(%(durations2)s, 0), mi.toc)
+                END ASC"""}
+
 
         discid_query = query_template % {'prop': 'ON (c.freedb_id) c.freedb_id',
                                          'extra_joins': """
@@ -122,7 +137,7 @@ class CDDB(object):
 
         # Always claim we found multiple matches
         res = ["211 Found inexact matches, list follows (until terminating `.')"]
-        for id, title, artist in toc_rows:
+        for id, ignore, title, artist in toc_rows:
             # note that these are NOT actually valid freedb ids
             # misc ids are medium ids in this case, which are unique
             res.append("misc %08x %s / %s" % (id, artist, title))
