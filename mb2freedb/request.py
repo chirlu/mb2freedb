@@ -85,10 +85,10 @@ class CDDB(object):
                 m.id,
                 CASE
                     WHEN track_count = %(num_tracks)s THEN
-                        cube_distance(create_bounding_cube(%(durations)s, 0), mi.toc)
+                        cube_distance(create_cube_from_durations(%(durations)s), mi.toc)
                     ELSE
-                        cube_distance(create_bounding_cube(%(durations2)s, 0), mi.toc)
-                END""",
+                        cube_distance(create_cube_from_durations(%(durations2)s), mi.toc)
+                END AS distance""",
                                       'extra_joins': """
                 JOIN medium_index mi ON mi.medium = m.id""",
                                       'extra_wheres': """
@@ -99,13 +99,7 @@ class CDDB(object):
                     (toc <@ create_bounding_cube(%(durations2)s,
                         %(fuzzy)s::int) AND track_count = (%(num_tracks)s-1))
                 )
-                ORDER BY
-                CASE
-                    WHEN track_count = %(num_tracks)s THEN
-                        cube_distance(create_bounding_cube(%(durations)s, 0), mi.toc)
-                    ELSE
-                        cube_distance(create_bounding_cube(%(durations2)s, 0), mi.toc)
-                END ASC"""}
+                ORDER BY distance ASC"""}
 
 
         discid_query = query_template % {'prop': 'ON (c.freedb_id) c.freedb_id',
